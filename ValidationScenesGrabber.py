@@ -1,4 +1,4 @@
-#This script is created to export Sentinel-2 RGB images for validation purposes. Export is meant to show only a small region around specific points.
+#This script was created to export Sentinel-2 RGB (plus NIR band``) images for validation purposes. Export is meant to show only a small region around specific points.
 #Goal was to generate raster for any date in a specific month, covering a large area in total extents, but only few points of interests within it.
 #This insues that even if the points' bounding box covers multiple longitude/latitude degrees, the output size will be in few megatbytes.
 
@@ -7,15 +7,19 @@
 #TODO modify code to ingest points, and do the buffering in GEE.
 #TODO consider doing the sampling itself in GEE, and export both the generated points and the imagery.
 
+#Note: the output has RGB channels ordered the correct way for display in desktop GIS software (e.g. QGIS), it uses default sentinel-2 DN encoding (0 to 10,000). Adjust
+#your GIS software accordingely (for QGIS users, set min to 0 and max to 10000 for each band. You probably would also benefit from adjusting the gamme, contrast and saturation)
+#For false colour imagery, some channel rearranging will be required.
+
 import ee
 ee.Initialize(project='seamproj01')
 
 sentinel2SR = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-roi = ee.FeatureCollection("projects/seamproj01/assets/sampling_points_buffer_1km") 
+roi = ee.FeatureCollection("projects/seamproj01/assets/sampling_points_buffer_1km_v2") 
 
 #set target year and month
 year = 2019
-month = 10
+month = 7
 
 #set maximum cloud percentage of a scene to be allowed in a mosaic (note: even if a scene passed this check, this doesn't guarantee its mosaic will be used)
 cloudThreshold = 25
@@ -30,7 +34,7 @@ doyList = col.distinct("doy").aggregate_array("doy").getInfo()
 mosaicList = ee.List([])
 for doy in doyList:
     scenesInDoY = col.filter(ee.Filter.eq("doy", doy))
-    mosaic = scenesInDoY.select(['B4','B3','B2']).mosaic().clip(roi.geometry()).toInt16().set({"doy" : doy, "count" : scenesInDoY.size()})
+    mosaic = scenesInDoY.select(['B4', 'B3', 'B2', 'B8']).mosaic().clip(roi.geometry()).toInt16().set({"doy" : doy, "count" : scenesInDoY.size()})
     mosaicList =  mosaicList.add(mosaic)
 
 mosaicList = ee.ImageCollection(mosaicList)
