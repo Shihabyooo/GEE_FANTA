@@ -1,47 +1,45 @@
-#This script was created to export Sentinel-2 RGB (plus NIR band``) images for validation purposes. Export is meant to show only a small region around specific points.
+#This script was created to export Sentinel-2 RGB (plus NIR band) images for validation purposes. Export is meant to show only a small region around specific points.
 #Goal was to generate raster for any date in a specific month, covering a large area in total extents, but only few points of interests within it.
-#This insues that even if the points' bounding box covers multiple longitude/latitude degrees, the output size will be in few megatbytes.
+#This insues that even if the points' bounding box covers multiple longitude/latitude degrees, the output size will be few megatbytes.
 
 #For optimal performance, the roi should be rectangular polygons around your validation points. Large enough that to show enough features to make a conclusion.
-#atm, this roi should be prepared in any GIS software that can produce shp files for earth engine to ingest.
+#atm, this roi should be prepared in any GIS software that can produce shp files for earth engine to ingest
 #TODO modify code to ingest points, and do the buffering in GEE.
 #TODO consider doing the sampling itself in GEE, and export both the generated points and the imagery.
 
 #Note: the output has RGB channels ordered the correct way for display in desktop GIS software (e.g. QGIS), it uses default sentinel-2 DN encoding (0 to 10,000). Adjust
 #your GIS software accordingely (for QGIS users, set min to 0 and max to 10000 for each band. You probably would also benefit from adjusting the gamme, contrast and saturation)
-#For false colour imagery, some channel rearranging will be required.
+#For false colour imagery, some channel rearranging will be required (Map B8, B4, B2 to RGB channels)
 
 import ee
-ee.Initialize(project='seamproj01')
+ee.Initialize()
 
 sentinel2SR = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-roi = ee.FeatureCollection("projects/seamproj01/assets/sampling_points_buffer_1km_v2") 
+roi = ee.FeatureCollection("projects/seamproj01/assets/sampling_points_buffer_1km_v2_2") 
 
 #set target year and month
-year = 2019
-month = 7
+year = 2022
+month = 2
 
-#set maximum cloud percentage of a scene to be allowed in a mosaic (note: even if a scene passed this check, this doesn't guarantee its mosaic will be used)
-cloudThreshold = 25
-
-#pre-filter the sentinel collection and add doy identifier, which will be used to mosaic scenes.
+#pre filtering
 col = sentinel2SR.filterDate(f"{year}-{month}-01", f"{year}-{month + 1}-1" if month < 12 else  f"{year + 1}-1-1").filterBounds(roi.geometry())
-col = col.filter(ee.Filter.lte("CLOUDY_PIXEL_PERCENTAGE", cloudThreshold))
-col = col.map(lambda img : img.set({"doy" : ee.Date(img.get("system:time_start")).format("DD")}))
+col = col.select(['B4', 'B3', 'B2', 'B8'])
 
-doyList = col.distinct("doy").aggregate_array("doy").getInfo()
+#generate a single composite/mosaic of the entire roi, using the least cloudy images for the month
+#First, get a list of MRGS tiles covering the points.
+tileList = col.distinct("MGRS_TILE").aggregate_array("MGRS_TILE").getInfo()
 
-mosaicList = ee.List([])
-for doy in doyList:
-    scenesInDoY = col.filter(ee.Filter.eq("doy", doy))
-    mosaic = scenesInDoY.select(['B4', 'B3', 'B2', 'B8']).mosaic().clip(roi.geometry()).toInt16().set({"doy" : doy, "count" : scenesInDoY.size()})
-    mosaicList =  mosaicList.add(mosaic)
+#Note: Sentinel-2 Data aren't always produced as perfect rectangles fitting an MGRS tiles. Some tiles are covered by the triangular/trapizoilda remainder of a sentine scene
+#after clipping neighbouring tiles. So, we do an internal mosaic for this tile first (inside the loop bellow), before doing the mosaicing over all tiles
+bestScences = ee.List([])
+for tileID in tileList:
+    #mosaic puts last image on top, so you want your least cloudy image as the last one.
+    tileCol = col.filter(ee.Filter.eq("MGRS_TILE", tileID)).sort("CLOUDY_PIXEL_PERCENTAGE", False)
+    tileImg = tileCol.mosaic()
+    bestScences = bestScences.add(tileImg)
 
-mosaicList = ee.ImageCollection(mosaicList)
-
-#sort and pick image with most scenes (ideally, covering our entire roi)
-mosaicList = mosaicList.sort("count", False)
-targetImageLarge = mosaicList.first()
+bestScences = ee.ImageCollection(bestScences)
+targetImageLarge = bestScences.mosaic().clip(roi.geometry()).toInt16()
 
 #To split the image into four, first, compute the bounds for splitting (quardants)
 boundingBox = ee.Array.cat(roi.geometry().bounds().coordinates(), 1)
@@ -65,7 +63,8 @@ quadrants.append(ee.Geometry.BBox(xMin, yHalf, xHalf, yMax))
 
 #export
 for i in range (0, 4):
-        outputFileName = f"RGB_{year}_{month}_{targetImageLarge.get("doy").getInfo()}_part_{i}"
+        #outputFileName = f"RGB_{year}_{month}_{targetImageLarge.get("doy").getInfo()}_part_{i}"
+        outputFileName = f"RGB_{year}_{month}_part_{i}"
 
         print ("exporting: ", outputFileName)
         targetImage = targetImageLarge.clip(quadrants[i])
