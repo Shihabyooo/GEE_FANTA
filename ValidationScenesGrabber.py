@@ -4,7 +4,6 @@
 
 #For optimal performance, the roi should be rectangular polygons around your validation points. Large enough that to show enough features to make a conclusion.
 #atm, this roi should be prepared in any GIS software that can produce shp files for earth engine to ingest
-#TODO modify code to ingest points, and do the buffering in GEE.
 #TODO consider doing the sampling itself in GEE, and export both the generated points and the imagery.
 
 #Note: the output has RGB channels ordered the correct way for display in desktop GIS software (e.g. QGIS), it uses default sentinel-2 DN encoding (0 to 10,000). Adjust
@@ -15,13 +14,19 @@ import ee
 ee.Initialize()
 
 sentinel2SR = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-roi = ee.FeatureCollection("projects/seamproj01/assets/sampling_points_buffer_1km_v2_2") 
+points = ee.FeatureCollection("projects/seamproj01/assets/test_samples") 
 
-#set target year and month
-year = 2022
-month = 2
+#set target year and month, and distance around the points to clip (in meters)
+year = 2019
+month = 6
+distToClip = 1000
 
-#pre filtering
+#buffer the points to create rois to clip
+roi = points.map(lambda point : point.buffer(distToClip)) #note: this will use meters, but on a spherical coordinate system. check the docs.
+#buffer on a point returns a circle, let's convert it to a rectangle. Not necessary, but I like rects better for these kinda things :) Using the circles bounds simplifis this.
+roi = roi.map(lambda circle : ee.Geometry.Rectangle(ee.Array.cat(circle.geometry().bounds().coordinates(),1).slice(0, 0, 3, 2).reshape([-1]).toList()))
+
+#pre filtering the images
 col = sentinel2SR.filterDate(f"{year}-{month}-01", f"{year}-{month + 1}-1" if month < 12 else  f"{year + 1}-1-1").filterBounds(roi.geometry())
 col = col.select(['B4', 'B3', 'B2', 'B8'])
 
@@ -63,7 +68,6 @@ quadrants.append(ee.Geometry.BBox(xMin, yHalf, xHalf, yMax))
 
 #export
 for i in range (0, 4):
-        #outputFileName = f"RGB_{year}_{month}_{targetImageLarge.get("doy").getInfo()}_part_{i}"
         outputFileName = f"RGB_{year}_{month}_part_{i}"
 
         print ("exporting: ", outputFileName)
