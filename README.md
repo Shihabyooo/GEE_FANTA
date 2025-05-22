@@ -10,9 +10,9 @@ The timeseries is encoded as raster bands in a geotiff file, with each band name
 
 Parameters for the model are set in the second cell of the notebook.
 This implementation supports the following surface reflectance products:
--`modis` : MODIS Terra.
--`sentinel` : Sentinel-2 MSI L2A. 
--`landsat` : Landsat-8 OLI Collection 2 Tier 1.
+- `modis` : MODIS Terra.
+- `sentinel` : Sentinel-2 MSI L2A. 
+- `landsat` : Landsat-8 OLI Collection 2 Tier 1.
 To select which dataset to use, adjust the `dataset` variable in the input cell.
 
 This workbook also allows for possibility of auto calibration of the parameters using differential evolution algorithm.
@@ -20,4 +20,4 @@ This workbook also allows for possibility of auto calibration of the parameters 
 If you want to use this workbook for your own region of interest, you need to supply a polygon asset (hosted in a GEE asset store you can access, e.g. your own GEE project) and set it as `roi` variable (as an ee.FeatureCollection). Ideally, this asset would have multiple polygons, each polygon covering a region with homogeneous climatic (and other) conditions (See the reference paper for more details).
 Example ROIs are already set in the first cell (should be publicly accessible, unless I updated them and forgot to change permissions >_>)
 
-In theory, any dataset with sufficient monthly rasters and enough bands to generate NDVI rasters (assuming we're sticking to the original research. Don't see why you can't test it with any other metric). All you need to do is adjust the third cell to create an ImageCollection the rest of the code can work with.
+In theory, any dataset with sufficient monthly rasters and enough bands to generate NDVI rasters (assuming we're sticking to the original research. Don't see why you can't test it with any other metric). All you need to do is adjust the third cell to create an ee.ImageCollection the rest of the code can work with.
