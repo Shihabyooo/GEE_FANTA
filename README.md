@@ -17,7 +17,8 @@ To select which dataset to use, adjust the `dataset` variable in the input cell.
 
 This workbook also allows for possibility of auto calibration of the parameters using differential evolution algorithm.
 
-If you want to use this workbook for your own region of interest, you need to supply a polygon asset (hosted in a GEE asset store you can access, e.g. your own GEE project) and set it as `roi` variable (as an ee.FeatureCollection). Ideally, this asset would have multiple polygons, each polygon covering a region with homogeneous climatic (and other) conditions (See the reference paper for more details).
+If you want to use this workbook for your own region of interest, you need to supply a polygon asset (hosted in a GEE asset store you can access, e.g. your own GEE project) and set it as `roi` variable (as an ee.FeatureCollection). Ideally, this asset would have multiple polygons, each polygon covering a subregion with homogeneous climatic (and other) conditions (See the reference paper for more details).
+Note: Each subregion must have a unique idententifying string, even if it's only a single region. You'll need to supply the column/attribute name to this workbook.
 Example ROIs are already set in the first cell (should be publicly accessible, unless I updated them and forgot to change permissions >_>)
 
 In theory, any dataset with sufficient monthly rasters and enough bands to generate NDVI rasters (assuming we're sticking to the original research. Don't see why you can't test it with any other metric). All you need to do is adjust the third cell to create an ee.ImageCollection the rest of the code can work with.
